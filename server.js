@@ -14,8 +14,8 @@ let browser = null;
             const endpoint = req.query.endpoint
             if (login && password && endpoint) {
                 try {
-                    const token = await auth(endpoint, login, password);
-                    res.send({token});
+                    const jwt = await auth(endpoint, login, password);
+                    res.send({jwt});
                 } catch(e){
                     res.status(403).send({"error": e.message});
                 }
@@ -34,17 +34,28 @@ async function auth(endpoint, login, password) {
     const context = await browser.createIncognitoBrowserContext();
     const page = await context.newPage();
     await page.goto(endpoint, { waitUntil: 'domcontentloaded' });
+    await page.waitForNavigation({ waitUntil: 'networkidle0' })
     console.log("authentification for " + login + " at " + endpoint)
+    try {
     await page.evaluate((a, b) => {
         document.querySelector('#userfield').value = a;
         document.querySelector('#passwordfield').value = b;
         document.querySelector('#sign_in_button').click();
     }, login, password);
-    await page.waitForNavigation({ waitUntil: 'domcontentloaded' })
-    const url = await page.url();
-    if (url.indexOf('token') > -1) {
+    } catch (e) {
+        console.log(e)
+    }
+    await page.waitForNavigation({ waitUntil: 'networkidle0' })
+    const url = await page.url()
+    console.log('URL:' + url)
+    console.log(url.indexOf('jwt'))
+    if (url.indexOf('jwt') > -1) {
         context.close();
-        return url.split('token=')[1].split('&')[0]
+        let params = url.split('?')[1].split('=')[1]
+        params = decodeURI(params)
+
+        const jwt = JSON.parse(params)
+        return jwt
     } else {
         context.close();
         throw new Error("Forbidden")
